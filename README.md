@@ -19,7 +19,7 @@ In the code of lab 1, the last step is to group all the data based on the `"DATE
 As we want to get the top 10 topics, a sort step is necessary. In lab 1, we used `sortBy()` to sort the RDDs by the `"count"` regardless of their `"DATE"` key. That is, RDDs with different `"DATE"` are combined together with `"count"` descending. Then in the following step, these RDDs are grouped by `"DATE"`. So, in lab 2, we came up with the idea that why not combine these two steps (sort and group) into a single one, which could reduce the number of times the RDDs are accessed. We detail the implementation below :
 
 1. We define a case class `TopicCount` to wrap `"topic"` and `"count"` and extend it with `Ordered` class so different `TopicCount` objects could be sorted by their `count` attribute.
-```scala=
+```scala
 case class TopicCount(topic: String, count: Int) extends Ordered[TopicCount] {
     override def compare(that: TopicCount): Int =
         // Descending order.
@@ -27,13 +27,13 @@ case class TopicCount(topic: String, count: Int) extends Ordered[TopicCount] {
 }
 ```
 2. We use `Sortedset` to store these `TopicCount` objects which could automatically keeps their order. Three parameters and lambda functions are passed into `aggregateByKey()` :
-```scala=
+```scala
 val initialSet = SortedSet.empty[TopicCount]
 val addToSet = (s: SortedSet[TopicCount], v: (String, Int)) => s += TopicCount(v._1, v._2)
 val mergePartitionSets = (p1: SortedSet[TopicCount], p2: SortedSet[TopicCount]) => p1 ++= p2
 ```
 3. The final code on `aggregateByKey()` :
-```scala=
+```scala
 .aggregateByKey(initialSet)(addToSet, mergePartitionSets)
 ```
 
@@ -41,7 +41,7 @@ In this way, RDDs could be aggregated and sorted simultaneouly. The performace o
 
 ### More changes on the code
 In lab 1, we have lines of code listed below :
-```scala=
+```scala
 // Here x is "DATE" and y is a set containing associated "topic"s.
 // NOTE: One (x, y) represents a single event in the dataset, not a combination of events with a same "DATE".
 .flatMap {case (x, y) => flatMatch(x, y)}
@@ -53,7 +53,7 @@ In lab 1, we have lines of code listed below :
 The `flatMatch()` method flats the key-value (`"DATE"` - set of `"topic"s`) pair to match the key (`"DATE"`) to every element (`"topic"`) in the value set (`"topic"`s) and outputs (`"DATE"`, `"topic"`, `"count"`). After this step, we used `map()` to reconstruct the rdd structure from (`"DATE"`, `"topic"`, `"count"`) to ((`"DATE"`, `"topic"`), `"count"`) and then filtered records with empty `"topic"`. 
 
 But in lab 2, we find that this approach is pretty stupid and time consuming. So what we have improved is that `flatMatch()` directly outputs ((`"DATE"`, `"topic"`), `"count"`) avoiding a `map()` operation and at the same time discards the record with empty `"topic"`. We put the modified `flatMatch()` here :
-```scala=
+```scala
 def flatMatch (day: String, nameSet: HashSet[String]): HashSet[Tuple2[Tuple2[String, String], Int]] = {
     val nameTuple = HashSet[Tuple2[Tuple2[String, String], Int]]()
     for (name <- nameSet) {
@@ -71,7 +71,7 @@ Though small changes, they bring performance improvement of 10% which I think is
 
 ### Kryo Serializer
 In lab 2, we utilize a significantly faster and more compact serializer, Kryo serializer compared to Java serializer, to do the data serialization work. Here are the classes we registered for Kryo classes :
-```scala=
+```scala
 val conf = new SparkConf()
         .registerKryoClasses(
           Array(
@@ -92,14 +92,14 @@ val conf = new SparkConf()
         )
 ```
 Then we set some Kryo configurations as below :
-```scala=
+```scala
 .config(conf)
 .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 .config("spark.kryo.referenceTracking", "false")
 .config("spark.kryo.registrationRequired", "true")
 ```
 After changing the serializer, however, we didn't see any performance improvement which we think is quite abnormal. It should work somehow. So we enlarged the initial kryo serializer buffer to 1024k and used unsafe IO based Kryo serialization : 
-```scala=
+```scala
 .config("spark.kryoserializer.buffer", "1024k")
 .config("spark.kryo.unsafe", "true") // Use unsafe IO based kryo serialization.
 ```
