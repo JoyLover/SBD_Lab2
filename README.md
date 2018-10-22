@@ -145,3 +145,6 @@ Apart from code modifications and spark configurations, there's a cluster config
 At first, we run the application on EMR with 2 nodes and a small part of dataset and it works as we expected. But when we scaled it on whole dataset or just on one year of dataset, an out of memory exception was always returned. But from Ganglia, we clearly knew that the whole memory of all nodes still contained large free space which should be fully utilized. 
 
 After we set `"maximumRessourceAllocation"` to `true`, problem solved and everything works as expected because it will use the maximum possible resources on each node of the cluster.
+
+## Performance
+Finally, our implementation has a performace of 10 minutes for RDD and 8 minutes for Dataframe on whole dataset.
