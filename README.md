@@ -1,5 +1,9 @@
 # Supercomputing for Big Data : Lab 2 Blog
+
+[Source code](https://github.com/JoyLover/SBD_Lab2/tree/master/src/main/scala)
+
 Authors : Zhao Yin & Raphael Eloi (Group 30)
+
 ## Introduction
 As part of the SuperComputing for Big Data class, we had to work during this quarter with the [Gdelt 2.0 Global Knownledge Graph](https://blog.gdeltproject.org/introducing-gkg-2-0-the-next-generation-of-the-gdelt-global-knowledge-graph/) dataset. The objective is to compute the top 10 most talked topics per day.
 
@@ -138,6 +142,38 @@ root
  |   |-- topic : String (nullable= false)
  |   |-- count : Int (nullable = false)
  ```
+ Here the columns topic and count are grouped in one object.
+ 
+ ### User-Defined Functions
+ A very useful tool for those operations with dataframes are the User-Defined Functions. This is a feature of Spark SQL to define new Column-based functions that extend the vocabulary of Spark  for transforming Datasets.
+ 
+ Here you have the two UDF functions we used in our program : 
+ 
+ ```scala
+//User-Defined Function used to Split a String of the form : String,num in order to keep only the String
+val remove_udf = udf((p: String) => {
+    p.split(",")(0)
+})
+
+case class Word(topic: String, count: Int)
+//udf function used to create and object with a topic and its count
+ val makeWord = udf((topic: String, count: Int) => Word(topic,count))
+```
+The first function is used to keep only the topic without keeping the number of time it appears in one source. It is used on a column after spliting and exploding the AllNames column.
+```scala
+val dsPart = df.select("DATE", "AllNames")//Selecting the columns we need
+     .withColumn("_tmp", split($"AllNames", ";"))//Splitting the String present in AllNames, so we have an array
+     .drop("AllNames")//Deleting the old AllNames column
+     .withColumn("NamesS", explode($"_tmp"))//We explode the array that was created in order to have one record for each topic
+     .drop("_tmp")//Deleting intermediate column
+     .withColumn("Names", remove_udf($"NamesS"))//Using the remove udf function on the topics in order to delete the internal count
+     .drop("NamesS")
+```
+The second function is use to change the schema as explained above in order to prepare the data to be written on a json file.
+```scala
+dsPart.withColumn("result",makeWord(col("Names"),col("count")))//First we need to create a colummn result that is a structure of the two column name and count
+    .drop("Names").drop("count")
+```
  
 ## Cluster configuration
 Apart from code modifications and spark configurations, there's a cluster configuration that really troubled us for some time. It's `"maximumRessourceAllocation"` config which defauls as `false`. 
@@ -148,3 +184,5 @@ After we set `"maximumRessourceAllocation"` to `true`, problem solved and everyt
 
 ## Performance
 Finally, our implementation has a performace of 10 minutes for RDD and 8 minutes for Dataframe on whole dataset.
+
+Both implementation are optimal with respect to their computation time and as expected from the theory, the dataframe program is quiet faster than the RDD's program.
